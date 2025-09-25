@@ -1,0 +1,66 @@
+Часть D — Error‑Log (частые ошибки, анти‑повторы)
+
+PowerShell curl -X → использовать curl.exe или Invoke-WebRequest. [RCC‑2025‑09‑22‑1]
+
+kubectl run --requests → неверный флаг; готовить YAML/overrides. [RCC‑2025‑09‑22‑3]
+
+kubectl patch JSON‑кавычки → here‑string/файл/kubectl edit. [RCC‑2025‑09‑16‑9]
+
+n8n «чистый лист» → добавить volumes/PVC. [RCC‑2025‑09‑09‑14]
+
+Повторные патчи excel‑ingest → хранить в /scratch/ с датой и ссылкой на коммит. [RCC‑2025‑09‑16‑9]
+
+Webhook 404 в n8n → воркфлоу не активирован (prod‑URL не работает для неактивных). [RCC‑2025‑09‑18‑5]
+
+Смешение dev/prod настроек → фиксировать отличия в docs/tech.md, не тащить ExternalName в prod. [MSC‑6]
+
+Часть E — Runbooks (пошаговые инструкции)
+E.1 Перезапуск excel‑ingest
+
+kubectl -n asia-dev rollout restart deploy/excel-ingest
+
+kubectl -n asia-dev rollout status deploy/excel-ingest
+
+Проверка: kubectl -n asia-dev get pods -l app=excel-ingest
+
+Health: kubectl -n asia-dev run curlbox --rm -it --image=curlimages/curl:8.9.0 -- sh -lc "curl -sv http://excel-ingest/health || true"
+
+E.2 Тест MinIO/Redis коннекта
+
+Windows: netstat -ano | findstr ":9000", ":6379".
+
+В кластере: kubectl -n asia-dev run curlbox --rm -it --image=curlimages/curl:8.9.0 -- sh -lc "nc -vz minio-dev 9000 || true".
+
+E.3 Webhook n8n (prod/test)
+
+Активировать workflow в UI.
+
+Prod: curl.exe -X POST "http://n8n.dev.asia.local/webhook/<route>" -H "Content-Type: application/json" -d "{...}"
+
+Test‑URL: запускать из редактора n8n, результаты видны на canvas.
+
+Проверять Executions (успешные/ошибки).
+
+E.4 PowerShell curl / Invoke‑WebRequest
+
+curl.exe -X POST "http://host.docker.internal/webhook/ui/upload-json" -H "Content-Type: application/json" -d "{...}"
+
+Или: Invoke-WebRequest -Method Post -Uri "http://host.docker.internal/webhook/ui/upload-json" -Headers @{"Content-Type"="application/json"} -Body '{...}'
+
+E.5 Патч через PowerShell без кавычечного ада
+
+patch.json → kubectl -n asia-dev patch deploy/excel-ingest --type merge --patch-file patch.json
+
+E.6 Секреты Postgres (Zalando Operator)
+
+Получить пароль: kubectl -n asia-dev get secret n8n-user.asia-pg.credentials.postgresql.acid.zalan.do -o jsonpath="{.data.password}" | base64 -d
+
+Прописать env в деплой: использовать valueFrom.secretKeyRef.
+
+E.7 Персистентность n8n/Appsmith
+
+Добавить PVC/hostPath; убедиться, что монтируются каталоги, где хранятся данные/конфиги.
+
+E.8 Диагностический pod «curlbox» (универсальный)
+
+kubectl -n asia-dev run curlbox --rm -it --image=curlimages/curl:8.9.0 -- sh -lc "env; ip a; nslookup excel-ingest; curl -sv http://excel-ingest/health || true"
