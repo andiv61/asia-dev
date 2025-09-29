@@ -14,6 +14,12 @@ Webhook 404 в n8n → воркфлоу не активирован (prod‑URL 
 
 Смешение dev/prod настроек → фиксировать отличия в docs/tech.md, не тащить ExternalName в prod. [MSC‑6]
 
+Ошибка: \INSERT → PowerShell экранирование кавычек. Фикс: вызывать -c "INSERT ..." без обратного слеша. [RCC-2025-09-26-1]
+
+Ошибка: Did not find any relation named "excel_ingest.*" при запросах из БД app. Причина: excel_ingest создана в postgres, а не в app. [RCC-2025-09-26-2]
+
+Ошибка: пустые записи в raw_ingest (org_id есть, source_key пуст). Причина: excel-ingest env переменные PGDATABASE=postgres, DB_NAME=postgres, но search_path сбивался (PGOPTIONS=-c search_path=public). [RCC-2025-09-26-3]
+
 Часть E — Runbooks (пошаговые инструкции)
 E.1 Перезапуск excel‑ingest
 
@@ -64,3 +70,38 @@ E.7 Персистентность n8n/Appsmith
 E.8 Диагностический pod «curlbox» (универсальный)
 
 kubectl -n asia-dev run curlbox --rm -it --image=curlimages/curl:8.9.0 -- sh -lc "env; ip a; nslookup excel-ingest; curl -sv http://excel-ingest/health || true"
+
+E.9 Проверка схемы и прав
+
+# список схем
+kubectl -n asia-dev exec -it asia-pg-0 -- psql -U app_user -d postgres -c "\dn"
+
+# таблицы в схеме excel_ingest
+kubectl -n asia-dev exec -it asia-pg-0 -- psql -U app_user -d postgres -c "\dt+ excel_ingest.*"
+
+
+E.10 Выдача прав и search_path
+
+kubectl -n asia-dev exec -it asia-pg-0 -- \
+  psql -U postgres -d postgres -c "GRANT USAGE ON SCHEMA excel_ingest TO app_user;"
+
+kubectl -n asia-dev exec -it asia-pg-0 -- \
+  psql -U postgres -d postgres -c "GRANT SELECT,INSERT,UPDATE,DELETE ON ALL TABLES IN SCHEMA excel_ingest TO app_user;"
+
+kubectl -n asia-dev exec -it asia-pg-0 -- \
+  psql -U postgres -d postgres -c "ALTER ROLE app_user IN DATABASE postgres SET search_path = excel_ingest, public;"
+
+
+E.11 Тест записи
+
+kubectl -n asia-dev exec -it asia-pg-0 -- \
+  psql -U app_user -d postgres -c \
+  "INSERT INTO excel_ingest.raw_ingest(org_id,vendor_profile,article_raw,source_key)
+   VALUES ('test','default','probe','uploads/test/probe.bin');"
+
+kubectl -n asia-dev exec -it asia-pg-0 -- \
+  psql -U app_user -d postgres -c \
+  "SELECT source_key, org_id, vendor_profile, inserted_at
+     FROM excel_ingest.raw_ingest
+ ORDER BY inserted_at DESC LIMIT 5;"
+

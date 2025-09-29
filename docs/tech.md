@@ -47,3 +47,7 @@ GHCR CI/CD для excel‑ingest (build/push), Helm/values, probes. [MSC-7]
 ADR оформить (см. список ниже). [все]
 
 Persist volumes для n8n/Appsmith. [RCC-2025-09-09-14]
+
+Excel-ingest: env-переменные в деплое содержат расхождения (DB_NAME=app против postgres). Привели к созданию схем в разных БД. Нужно унифицировать: оставить postgres + excel_ingest schema для продакшена. [RCC-2025-09-26-3]
+
+Добавлен source_key и индекс idx_excel_ingest_raw_ingest_source_key. [MSC-8]
