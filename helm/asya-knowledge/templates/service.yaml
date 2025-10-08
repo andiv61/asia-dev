@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "asya-knowledge.fullname" . }}
+  labels:
+    {{- include "asya-knowledge.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  selector:
+    {{- include "asya-knowledge.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port | default 8080 }}
+      targetPort: {{ .Values.containerPort | default 8080 }}
+      protocol: TCP

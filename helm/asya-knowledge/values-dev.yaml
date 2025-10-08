@@ -1,0 +1,59 @@
+﻿image:
+  repository: asya-knowledge     # локально собранный образ
+  tag: dev
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+containerPort: 8080
+service:
+  type: ClusterIP
+  port: 8080
+
+probes:
+  enabled: true
+  type: tcp
+  port: 8080
+  readinessInitialDelay: 20
+  livenessInitialDelay: 30
+  periodSeconds: 10
+  failureThreshold: 6
+
+resources:
+  requests: { cpu: "100m", memory: "256Mi" }
+  limits:   { cpu: "500m", memory: "512Mi" }
+
+podEnv:
+  sslmode: "require"
+  extra: []
+
+pgurl:
+  secretName: "asya-knowledge-pgurl"
+  secretKey:  "PGURL"
+
+chroma:
+  url: "http://chromadb:8000"
+
+quota:
+  enabled: true
+  hard:
+    requests.cpu: "2"
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    pods: "10"
+
+limits:
+  enabled: true
+  default:        { cpu: "500m", memory: "512Mi" }
+  defaultRequest: { cpu: "100m", memory: "256Mi" }
+
+jobs:
+  embed:
+    enabled: true
+    limit: 200
+    dryRun: true        # включишь false, когда будешь писать в Chroma
+    batch: 200
+    resources:
+      requests: { cpu: "200m", memory: "512Mi" }
+      limits:   { cpu: "1",    memory: "1Gi" }

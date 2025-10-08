@@ -1,0 +1,40 @@
+{{- if .Values.jobs.embed.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "asya-knowledge.fullname" . }}-embed
+  namespace: {{ .Values.namespace | default "asia-dev" }}
+  labels:
+    app.kubernetes.io/name: asya-knowledge
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: embed
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          command: ["/bin/sh","-lc"]
+          args:
+            - >
+              set -euo pipefail;
+              python -c "from alog import start_session, log_event;
+              sid=start_session('A4A embeddings loader (prod)',channel='job',owner='andrew',
+              meta={'dryRun':{{ if .Values.jobs.embed.dryRun }}True{{ else }}False{{ end }},'limit':{{ .Values.jobs.embed.limit | default 0 }}});
+              log_event(sid,role='tool',phase='embed',category='discussion',tags=['prod','chroma','start'],text='Embeddings job started')";
+              python /app/embed_loader.py{{ if .Values.jobs.embed.limit }} --limit {{ .Values.jobs.embed.limit }}{{ end }}{{ if .Values.jobs.embed.dryRun }} --dry-run{{ end }}{{ if .Values.jobs.embed.batch }} --batch {{ .Values.jobs.embed.batch }}{{ end }};
+              python -c "from alog import start_session, log_event;
+              sid=start_session('A4A embeddings loader (prod)',channel='job',owner='andrew',meta={'status':'done'});
+              log_event(sid,role='tool',phase='embed',category='discussion',tags=['prod','chroma','done'],text='Embeddings job finished OK')"
+          env:
+            - name: CHROMA_URL
+              value: "{{ .Values.chroma.url | default "http://chromadb:8000" }}"
+            - name: PGURL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.pgurl.secretName | quote }}
+                  key:  {{ .Values.pgurl.secretKey  | quote }}
+          resources:
+            {{- toYaml .Values.jobs.embed.resources | nindent 12 }}
+{{- end }}

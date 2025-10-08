@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asya-knowledge
+  namespace: asia-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: asya-knowledge }
+  template:
+    metadata:
+      labels: { app: asya-knowledge }
+    spec:
+      containers:
+      - name: asya-knowledge
+        image: ghcr.io/andiv61/asya-knowledge:0.1.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+        readinessProbe:
+          httpGet: { path: /ready, port: http }
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        livenessProbe:
+          httpGet: { path: /health, port: http }
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        volumeMounts:
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: tmp
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: asya-knowledge
+  namespace: asia-dev
+spec:
+  selector: { app: asya-knowledge }
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

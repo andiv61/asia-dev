@@ -1,0 +1,17 @@
+{{- if .Values.limits.enabled }}
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: {{ include "asya-knowledge.fullname" . }}-limits
+  labels:
+    {{- include "asya-knowledge.labels" . | nindent 4 }}
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: {{ .Values.limits.default.cpu | quote }}
+        memory: {{ .Values.limits.default.memory | quote }}
+      defaultRequest:
+        cpu: {{ .Values.limits.defaultRequest.cpu | quote }}
+        memory: {{ .Values.limits.defaultRequest.memory | quote }}
+{{- end }}

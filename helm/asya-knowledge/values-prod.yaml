@@ -1,0 +1,70 @@
+﻿image:
+  repository: ghcr.io/andiv61/asya-knowledge
+  tag: "dev-2025-10-08"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: ghcr-pull
+
+replicaCount: 2
+
+namespace: asia-prod
+
+containerPort: 8080
+
+service:
+  type: ClusterIP
+  port: 8080
+
+probes:
+  enabled: true
+  type: http
+  port: 8080
+  path: /ready
+  livenessInitialDelay: 20
+  periodSeconds: 10
+  failureThreshold: 6
+  startup:
+    enabled: true
+    failureThreshold: 30
+    periodSeconds: 1
+
+resources:
+  requests:
+    cpu: "500m"
+    memory: "1Gi"
+  limits:
+    cpu: "2"
+    memory: "2Gi"
+
+chroma:
+  url: "http://chromadb:8000"
+
+pgurl:
+  secretName: asya-knowledge-pgurl
+  secretKey: PGURL
+
+# ВАЖНО: ключ должен называться quota, т.к. шаблон читает .Values.quota.enabled
+quota:
+  enabled: true
+  hard:
+    requests.cpu: "4"
+    requests.memory: "4Gi"
+    limits.cpu: "8"
+    limits.memory: "8Gi"
+    pods: "30"
+
+limits:
+  enabled: true
+  default:        { cpu: "1",   memory: "1Gi" }
+  defaultRequest: { cpu: "200m", memory: "512Mi" }
+
+jobs:
+  embed:
+    enabled: false
+    limit: 200
+    dryRun: false
+    batch: 200
+    resources:
+      requests: { cpu: "200m", memory: "512Mi" }
+      limits:   { cpu: "1",    memory: "1Gi" }

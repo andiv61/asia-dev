@@ -1,0 +1,146 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "asya-knowledge.fullname" . }}
+  labels:
+    {{- include "asya-knowledge.labels" . | nindent 4 }}
+spec:
+  {{- if .Values.strategy }}
+  strategy:
+    type: {{ .Values.strategy.type | default "Recreate" }}
+    {{- if and (eq (.Values.strategy.type | default "Recreate") "RollingUpdate") .Values.strategy.rollingUpdate }}
+    rollingUpdate:
+      maxSurge: {{ .Values.strategy.rollingUpdate.maxSurge | default 0 }}
+      maxUnavailable: {{ .Values.strategy.rollingUpdate.maxUnavailable | default 1 }}
+    {{- end }}
+  {{- end }}
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount | default 1 }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "asya-knowledge.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "asya-knowledge.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "asya-knowledge.serviceAccountName" . }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: asya-knowledge
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy | default "IfNotPresent" }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort | default 8080 }}
+              protocol: TCP
+
+          env:
+            # DSN только из секрета (ТЗ)
+            - name: PGURL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.pgurl.secretName }}
+                  key: {{ .Values.pgurl.secretKey }}
+
+            # Безопасно читаем podEnv.sslmode: если podEnv отсутствует — берём "require"
+            {{- if and .Values.podEnv (hasKey .Values.podEnv "sslmode") }}
+            - name: SSLMODE
+              value: {{ .Values.podEnv.sslmode | default "require" | quote }}
+            {{- else }}
+            - name: SSLMODE
+              value: "require"
+            {{- end }}
+
+            # Доп. переменные в podEnv.extra, если заданы
+            {{- if and .Values.podEnv .Values.podEnv.extra }}
+            {{- range $e := .Values.podEnv.extra }}
+            - name: {{ $e.name }}
+              value: {{ $e.value | quote }}
+            {{- end }}
+            {{- end }}
+
+          {{- if .Values.probes.enabled }}
+          # Readiness
+          readinessProbe:
+          {{- if eq (.Values.probes.type | default "tcp") "tcp" }}
+            tcpSocket:
+              port: {{ .Values.probes.port | default .Values.containerPort | default 8080 }}
+          {{- else }}
+            httpGet:
+              path: {{ .Values.probes.path | default "/api/health" | quote }}
+              port: {{ .Values.probes.port | default .Values.containerPort | default 8080 }}
+          {{- end }}
+            initialDelaySeconds: {{ .Values.probes.readinessInitialDelay | default 10 }}
+            periodSeconds: {{ .Values.probes.periodSeconds | default 10 }}
+            failureThreshold: {{ .Values.probes.failureThreshold | default 6 }}
+
+          # Liveness
+          livenessProbe:
+          {{- if eq (.Values.probes.type | default "tcp") "tcp" }}
+            tcpSocket:
+              port: {{ .Values.probes.port | default .Values.containerPort | default 8080 }}
+          {{- else }}
+            httpGet:
+              path: {{ .Values.probes.path | default "/api/health" | quote }}
+              port: {{ .Values.probes.port | default .Values.containerPort | default 8080 }}
+          {{- end }}
+            initialDelaySeconds: {{ .Values.probes.livenessInitialDelay | default 20 }}
+            periodSeconds: {{ .Values.probes.periodSeconds | default 10 }}
+            failureThreshold: {{ .Values.probes.failureThreshold | default 6 }}
+
+          {{- if and .Values.probes.startup.enabled (eq (.Values.probes.type | default "tcp") "tcp") }}
+          # Startup probe (даёт время на «разгон»)
+          startupProbe:
+            tcpSocket:
+              port: {{ .Values.probes.port | default .Values.containerPort | default 8080 }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold | default 30 }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds | default 1 }}
+          {{- end }}
+          {{- end }}
+
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

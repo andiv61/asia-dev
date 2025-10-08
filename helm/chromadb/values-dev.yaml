@@ -1,0 +1,32 @@
+﻿image:
+  repository: chromadb/chroma
+  tag: 0.5.4
+
+replicaCount: 1
+
+service:
+  name: chromadb
+  port: 8000
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""     # подставь свой класс, если нужно
+
+resources:
+  requests: { cpu: "200m", memory: "512Mi" }
+  limits:   { cpu: "1",    memory: "1Gi" }
+
+quota:
+  enabled: true
+  hard:
+    requests.cpu: "2"
+    requests.memory: "2Gi"
+    limits.cpu: "4"
+    limits.memory: "4Gi"
+    pods: "10"
+
+limits:
+  enabled: true
+  default:        { cpu: "1",  memory: "1Gi" }
+  defaultRequest: { cpu: "200m", memory: "512Mi" }

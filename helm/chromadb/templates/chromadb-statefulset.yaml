@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: chroma
+  namespace: asia-dev
+  labels: { app: chroma }
+spec:
+  serviceName: chroma
+  replicas: 1
+  selector:
+    matchLabels: { app: chroma }
+  template:
+    metadata:
+      labels: { app: chroma }
+    spec:
+      containers:
+        - name: chroma
+          image: chromadb/chroma:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: CHROMA_DB_IMPL
+              value: duckdb+parquet
+            - name: PERSIST_DIRECTORY
+              value: /data/chroma
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests: { cpu: "100m", memory: "256Mi" }
+            limits:   { cpu: "1",    memory: "2Gi" }
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi   # можно увеличить до 20Gi, как просил (10–20 ГБ)
+        # storageClassName: ""  # оставь пустым, если есть default SC
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+        labels: { app: chroma }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+        storageClassName: hostpath   # ВАЖНО: явно задали SC
